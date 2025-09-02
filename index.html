@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Compound Interest Calculator Dashboard</title>
+    <!-- CDNs for PDF generation and Charting -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style type="text/css">
+        :root {
+            --background-url: url('images/road.jpg');
+            --text-color: #f0f0f0;
+            --border-color: rgba(255, 255, 255, 0.25);
+            --glass-bg: rgba(30, 30, 30, 0.6);
+            --blur-effect: blur(10px);
+            --highlight-color: #00aaff;
+        }
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            min-height: 100vh;
+            background-image: var(--background-url); 
+            background-size: cover;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-color);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .dashboard {
+            max-width: 600px;
+            width: 100%;
+            background: var(--glass-bg);
+            backdrop-filter: var(--blur-effect);
+            -webkit-backdrop-filter: var(--blur-effect);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+            padding: 32px;
+        }
+        .dashboard h2 {
+            text-align: center;
+            margin-bottom: 24px;
+            color: #fff;
+        }
+        .dashboard label {
+            display: block;
+            margin-top: 16px;
+            font-weight: bold;
+        }
+        .dashboard input, .dashboard select {
+            width: 100%;
+            padding: 10px;
+            margin-top: 4px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            box-sizing: border-box;
+            background: rgba(0, 0, 0, 0.3);
+            color: var(--text-color);
+            font-size: 16px;
+        }
+        .dashboard select option {
+            background: #333;
+        }
+        .action-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            margin-top: 24px;
+        }
+        .dashboard button {
+            width: 100%;
+            padding: 12px;
+            background: var(--highlight-color);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .dashboard button.secondary {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        .dashboard button:hover {
+            filter: brightness(1.2);
+        }
+        .dashboard .result, .summary-card, .chart-container {
+            margin-top: 24px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border-color);
+            padding: 16px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .dashboard .result {
+            font-size: 18px;
+        }
+        .summary-card {
+            font-size: 16px;
+        }
+        @media print {
+            body {
+                background: #fff;
+                color: #000;
+                display: block;
+            }
+            .dashboard {
+                box-shadow: none;
+                border: none;
+                backdrop-filter: none;
+                background: #fff;
+                max-width: 100%;
+                opacity: 1;
+            }
+            .dashboard h2, .dashboard label, .dashboard input, .dashboard select, .dashboard .result, .summary-card {
+                color: #000 !important;
+                background: #fff !important;
+            }
+            .action-buttons, #calcForm button[type="submit"] {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard" id="dashboardContent">
+        <h2>Compound Interest Dashboard</h2>
+        <form id="calcForm">
+            <label for="principal">Principal Amount ($):</label>
+            <input type="number" id="principal" required min="0" step="0.01" value="10000">
+
+            <label for="rate">Annual Interest Rate (%):</label>
+            <input type="number" id="rate" required min="0" step="0.01" value="5">
+
+            <label for="years">Years:</label>
+            <input type="number" id="years" required min="1" step="1" value="10">
+
+            <label for="frequency">Compounding Frequency:</label>
+            <select id="frequency" required>
+                <option value="12">Monthly</option>
+                <option value="1">Annually</option>
+                <option value="2">Semi-Annually</option>
+                <option value="4">Quarterly</option>
+                <option value="365">Daily</option>
+            </select>
+            
+            <div class="action-buttons">
+                <button type="submit">Calculate</button>
+                <button type="button" id="printBtn" class="secondary">Print</button>
+                <button type="button" id="pdfBtn" class="secondary">Download PDF</button>
+            </div>
+        </form>
+        <div class="result" id="result" style="display:none;"></div>
+        <div class="summary-card" id="summaryCard" style="display:none;">
+            <strong>Summary:</strong>
+            <div id="summaryContent"></div>
+        </div>
+        <div class="chart-container" style="display:none;" id="chartContainer">
+            <canvas id="interestChart"></canvas>
+        </div>
+    </div>
+    <script>
+        function calculateCompoundInterest(principal, rate, years, frequency) {
+            const data = [];
+            for (let year = 1; year <= years; year++) {
+                const amount = principal * Math.pow((1 + rate / frequency), frequency * year);
+                data.push({ year, amount });
+            }
+            return data;
+        }
+
+        document.getElementById('calcForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const principal = parseFloat(document.getElementById('principal').value);
+            const rate = parseFloat(document.getElementById('rate').value) / 100;
+            const years = parseInt(document.getElementById('years').value, 10);
+            const frequency = parseInt(document.getElementById('frequency').value, 10);
+
+            // Compound Interest Formula: A = P (1 + r/n)^(nt)
+            const amount = principal * Math.pow((1 + rate / frequency), frequency * years);
+            const interest = amount - principal;
+
+            // Show result
+            document.getElementById('result').style.display = 'block';
+            document.getElementById('result').innerHTML = `
+                <strong>Future Value:</strong> $${amount.toFixed(2)}<br>
+                <strong>Total Interest:</strong> $${interest.toFixed(2)}
+            `;
+
+            // Show summary card
+            document.getElementById('summaryCard').style.display = 'block';
+            document.getElementById('summaryContent').innerHTML = `
+                Principal: $${principal.toFixed(2)}<br>
+                Rate: ${(rate*100).toFixed(2)}%<br>
+                Years: ${years}<br>
+                Compounded: ${frequency} times/year
+            `;
+
+            // Prepare chart data
+            const chartData = calculateCompoundInterest(principal, rate, years, frequency);
+            const labels = chartData.map(d => `Year ${d.year}`);
+            const data = chartData.map(d => d.amount.toFixed(2));
+
+            // Show chart
+            document.getElementById('chartContainer').style.display = 'block';
+            if (window.interestChart) {
+                window.interestChart.destroy();
+            }
+            const ctx = document.getElementById('interestChart').getContext('2d');
+            Chart.defaults.color = '#f0f0f0';
+            window.interestChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Future Value Over Time',
+                        data: data,
+                        borderColor: 'var(--highlight-color)',
+                        backgroundColor: 'rgba(0, 170, 255, 0.2)',
+                        fill: true,
+                        tension: 0.2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: true, labels: { color: '#f0f0f0' } }
+                    },
+                    scales: {
+                        y: { beginAtZero: false, ticks: { color: '#f0f0f0' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                        x: { ticks: { color: '#f0f0f0' }, grid: { color: 'rgba(255,255,255,0.1)' } }
+                    }
+                }
+            });
+        });
+
+        // Print and PDF functionality
+        document.getElementById('printBtn').addEventListener('click', function() {
+            window.print();
+        });
+
+        document.getElementById('pdfBtn').addEventListener('click', function() {
+            const element = document.getElementById('dashboardContent');
+            const opt = {
+                margin:       0.5,
+                filename:     'compound-interest-report.pdf',
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, backgroundColor: null },
+                jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+            };
+            // Clone the element to modify for PDF generation without affecting the screen
+            const elementToExport = element.cloneNode(true);
+            // Remove buttons from the cloned element
+            elementToExport.querySelector('.action-buttons').remove();
+            elementToExport.querySelector('button[type="submit"]')?.remove();
+            
+            html2pdf().set(opt).from(elementToExport).save();
+        });
+    </script>
+</body>
+</html>
